@@ -232,6 +232,11 @@ export const handleApiError = (error: any, context?: ErrorContext): void => {
 };
 
 export const handleNetworkError = (error: any, context?: ErrorContext): void => {
+  console.group('🔴 Network Error Handler');
+  console.error('Error object:', error);
+  console.log('Context:', context);
+  console.log('Online status:', navigator.onLine);
+  
   const isNetworkError = 
     error?.message?.includes('fetch') ||
     error?.message?.includes('network') ||
@@ -239,14 +244,28 @@ export const handleNetworkError = (error: any, context?: ErrorContext): void => 
     error?.code === 'NETWORK_ERROR' ||
     !navigator.onLine;
 
+  console.log('Is network error:', isNetworkError);
+
   if (isNetworkError) {
+    // Check if backend URL is configured
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    console.error('Backend URL check:', backendUrl || '❌ NOT SET');
+    
+    const description = !backendUrl || backendUrl === '' 
+      ? 'Backend URL is not configured. Please set NEXT_PUBLIC_BACKEND_URL environment variable.'
+      : 'Cannot connect to the server. Please check your internet connection and try again.';
+    
+    console.error('Error description:', description);
+    
     toast.error('Connection error', {
-      description: 'Please check your internet connection and try again.',
-      duration: 6000,
+      description,
+      duration: 8000,
     });
   } else {
+    console.log('Treating as API error');
     handleApiError(error, context);
   }
+  console.groupEnd();
 };
 
 export const handleApiSuccess = (message: string, description?: string): void => {

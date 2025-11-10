@@ -4,6 +4,15 @@ import { parseTierRestrictionError } from './api/errors';
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
 
+// Log API configuration at module load
+console.group('🔧 API Client Configuration');
+console.log('Backend URL:', API_URL || '❌ NOT SET');
+console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL || '❌ NOT SET');
+console.log('Supabase Anon Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✅ SET' : '❌ NOT SET');
+console.log('Environment Mode:', process.env.NEXT_PUBLIC_ENV_MODE || 'production');
+console.log('Node ENV:', process.env.NODE_ENV || 'unknown');
+console.groupEnd();
+
 export interface ApiClientOptions {
   showErrors?: boolean;
   errorContext?: ErrorContext;
@@ -27,6 +36,13 @@ async function makeRequest<T = any>(
     ...fetchOptions
   } = options;
 
+  // Log every API request
+  console.group(`🌐 API Request: ${fetchOptions.method || 'GET'} ${url}`);
+  console.log('Full URL:', url);
+  console.log('Method:', fetchOptions.method || 'GET');
+  console.log('Context:', errorContext);
+  console.log('Backend URL base:', API_URL || '❌ NOT SET');
+  
   const controller = new AbortController();
   let timeoutId: NodeJS.Timeout | null = null;
   let isAborted = false;
@@ -41,6 +57,8 @@ async function makeRequest<T = any>(
 
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
+    
+    console.log('Auth token:', session?.access_token ? '✅ Present' : '❌ Missing');
 
     // Don't set Content-Type for FormData - browser will set it automatically with boundary
     const isFormData = fetchOptions.body instanceof FormData;
@@ -61,6 +79,8 @@ async function makeRequest<T = any>(
       headers['X-Refresh-Token'] = session.refresh_token;
     }
 
+    console.log('Sending request with headers:', Object.keys(headers));
+    
     const response = await fetch(url, {
       ...fetchOptions,
       headers,
@@ -71,6 +91,10 @@ async function makeRequest<T = any>(
       clearTimeout(timeoutId);
       timeoutId = null;
     }
+
+    console.log('Response status:', response.status, response.statusText);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+    console.groupEnd();
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -133,6 +157,16 @@ async function makeRequest<T = any>(
       clearTimeout(timeoutId);
       timeoutId = null;
     }
+
+    console.error('❌ Request failed:', error);
+    console.log('Error details:', {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      type: typeof error,
+      stack: error?.stack?.split('\n')[0]
+    });
+    console.groupEnd();
 
     // Check if this is an abort error (timeout or manual abort)
     const isAbortError = error?.name === 'AbortError' || 
