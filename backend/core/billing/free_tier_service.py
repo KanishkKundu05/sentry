@@ -10,97 +10,58 @@ class FreeTierService:
         self.stripe = stripe
         
     async def auto_subscribe_to_free_tier(self, account_id: str, email: Optional[str] = None) -> Dict:
+        """
+        Give all new users full access without requiring Stripe subscription.
+        Sets tier to 'tier_2_20' (Starter) with generous credits and limits.
+        """
         db = DBConnection()
         client = await db.client
         
         try:
-            logger.info(f"[FREE TIER] Auto-subscribing user {account_id} to free tier")
+            logger.info(f"[FREE TIER] Auto-subscribing user {account_id} to full access tier")
             
-            existing_sub = await client.from_('credit_accounts').select(
-                'stripe_subscription_id, tier'
+            # Check if user already has a tier set
+            existing = await client.from_('credit_accounts').select(
+                'tier'
             ).eq('account_id', account_id).execute()
             
-            if existing_sub.data and len(existing_sub.data) > 0:
-                if existing_sub.data[0].get('stripe_subscription_id'):
-                    logger.info(f"[FREE TIER] User {account_id} already has subscription, skipping")
-                    return {'success': False, 'message': 'Already subscribed'}
+            if existing.data and len(existing.data) > 0:
+                current_tier = existing.data[0].get('tier', 'none')
+                if current_tier != 'none':
+                    logger.info(f"[FREE TIER] User {account_id} already has tier {current_tier}, skipping")
+                    return {'success': True, 'message': 'Already has tier', 'tier': current_tier}
             
-            customer_result = await client.schema('basejump').from_('billing_customers').select(
-                'id'
-            ).eq('account_id', account_id).execute()
+            # Give everyone Starter tier (tier_2_20) by default with full access
+            # This tier includes:
+            # - $20 monthly credits
+            # - All AI models access
+            # - 100 projects/threads
+            # - 3 concurrent runs
+            # - 2 custom agents
+            default_tier = 'tier_2_20'
             
-            stripe_customer_id = customer_result.data[0]['id'] if customer_result.data and len(customer_result.data) > 0 else None
+            from decimal import Decimal
+            from datetime import datetime, timezone, timedelta
             
-            if not email:
-                account_result = await client.schema('basejump').from_('accounts').select(
-                    'primary_owner_user_id'
-                ).eq('id', account_id).execute()
-                
-                if account_result.data and len(account_result.data) > 0:
-                    user_id = account_result.data[0]['primary_owner_user_id']
-                    try:
-                        user_result = await client.auth.admin.get_user_by_id(user_id)
-                        email = user_result.user.email if user_result and user_result.user else None
-                    except:
-                        pass
-                    
-                    if not email:
-                        try:
-                            email_result = await client.rpc('get_user_email', {'user_id': user_id}).execute()
-                            if email_result.data:
-                                email = email_result.data
-                        except:
-                            pass
-            
-            if not email:
-                logger.error(f"[FREE TIER] Could not get email for account {account_id}")
-                return {'success': False, 'error': 'Email not found'}
-            
-            if not stripe_customer_id:
-                logger.info(f"[FREE TIER] Creating Stripe customer for {account_id}")
-                customer = await self.stripe.Customer.create_async(
-                    email=email,
-                    metadata={'account_id': account_id},
-                    invoice_settings={
-                        'default_payment_method': None
-                    }
-                )
-                stripe_customer_id = customer.id
-                
-                await client.schema('basejump').from_('billing_customers').insert({
-                    'id': stripe_customer_id,
-                    'account_id': account_id,
-                    'email': email
-                }).execute()
-            
-            logger.info(f"[FREE TIER] Creating $0/month subscription for {account_id}")
-            subscription = await self.stripe.Subscription.create_async(
-                customer=stripe_customer_id,
-                items=[{'price': config.STRIPE_FREE_TIER_ID}],
-                collection_method='charge_automatically',
-                days_until_due=None,
-                metadata={
-                    'account_id': account_id,
-                    'tier': 'free'
-                }
-            )
+            # Grant initial credits
+            next_grant = datetime.now(timezone.utc) + timedelta(days=30)
             
             await client.from_('credit_accounts').update({
-                'tier': 'free',
-                'stripe_subscription_id': subscription.id
+                'tier': default_tier,
+                'balance': str(Decimal('20.00')),  # Give $20 credits immediately
+                'billing_cycle_anchor': datetime.now(timezone.utc).isoformat(),
+                'next_credit_grant': next_grant.isoformat(),
+                'last_grant_date': datetime.now(timezone.utc).isoformat()
             }).eq('account_id', account_id).execute()
             
-            logger.info(f"[FREE TIER] ✅ Successfully created free tier subscription {subscription.id} for {account_id}")
+            logger.info(f"[FREE TIER] ✅ Granted {default_tier} tier with $20 credits to {account_id}")
             
             return {
                 'success': True,
-                'subscription_id': subscription.id,
-                'customer_id': stripe_customer_id
+                'tier': default_tier,
+                'message': 'Full access granted'
             }
             
-        except stripe.error.StripeError as e:
-            logger.error(f"[FREE TIER] Stripe error for {account_id}: {e}")
-            return {'success': False, 'error': str(e)}
         except Exception as e:
             logger.error(f"[FREE TIER] Error auto-subscribing {account_id}: {e}")
             return {'success': False, 'error': str(e)}

@@ -16,6 +16,10 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key-here
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 SUPABASE_JWT_SECRET=your-jwt-secret-here
+
+# Supabase Auth - Google OAuth (Required for Sign in with Google)
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=your-google-client-secret
 ```
 
 ## Redis (Required - Use Upstash for Vercel)

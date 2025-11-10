@@ -44,7 +44,9 @@ export async function GET(request: NextRequest) {
             .eq('account_id', accountData.id)
             .single();
 
-          if (creditAccount && (creditAccount.tier === 'none' || !creditAccount.stripe_subscription_id)) {
+          // Only redirect to setup if account doesn't exist yet
+          // Users with tier='none' will be auto-upgraded on first API call
+          if (creditAccount && creditAccount.tier === 'none') {
             return NextResponse.redirect(`${baseUrl}/setting-up`);
           }
         }

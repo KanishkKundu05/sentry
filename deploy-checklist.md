@@ -15,6 +15,9 @@ Follow this step-by-step checklist to deploy your backend to production.
   - Ensure production database is set up
   - Note down connection credentials
   - Verify RLS policies are enabled
+  - **⚠️ IMPORTANT:** Configure Google OAuth (see `GOOGLE_OAUTH_SETUP.md`)
+    - Enable Google provider in Supabase Dashboard → Authentication → Providers
+    - Add Google Client ID and Secret from Google Cloud Console
 
 ### ✅ 2. Configure Stripe
 
@@ -53,7 +56,9 @@ Copy variables from `ENV_VARS.md` and add them one by one:
 **Critical Variables (Must Set):**
 - [ ] `ENV_MODE=production`
 - [ ] `PYTHONPATH=/var/task/backend`
-- [ ] All Supabase variables
+- [ ] All Supabase variables (including GOOGLE_CLIENT_ID and GOOGLE_SECRET for OAuth)
+- [ ] `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` (for Google Sign-In)
+- [ ] `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET` (for Google Sign-In)
 - [ ] All Redis variables (Upstash)
 - [ ] At least one LLM API key
 - [ ] Stripe keys

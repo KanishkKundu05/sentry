@@ -36,8 +36,9 @@ export default function SubscriptionRequiredPage() {
       const hasValidTier = tierKey && tierKey !== 'none';
       const isFreeTier = tierKey === 'free';
 
-      // Redirect to dashboard if user has valid subscription/trial/free tier
-      if ((hasActiveSubscription && hasValidTier) || (hasActiveTrial && hasValidTier) || isFreeTier) {
+      // Redirect to dashboard if user has valid subscription/trial/free tier OR any paid tier
+      if ((hasActiveSubscription && hasValidTier) || (hasActiveTrial && hasValidTier) || isFreeTier || hasValidTier) {
+        console.log('✅ User has valid access, redirecting to dashboard. Tier:', tierKey);
         router.push('/dashboard');
       }
     }
