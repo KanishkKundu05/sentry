@@ -100,42 +100,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-@app.middleware("http")
-async def log_requests_middleware(request: Request, call_next):
-    structlog.contextvars.clear_contextvars()
-
-    request_id = str(uuid.uuid4())
-    start_time = time.time()
-    client_ip = request.client.host if request.client else "unknown"
-    method = request.method
-    path = request.url.path
-    query_params = str(request.query_params)
-
-    structlog.contextvars.bind_contextvars(
-        request_id=request_id,
-        client_ip=client_ip,
-        method=method,
-        path=path,
-        query_params=query_params
-    )
-
-    # Log the incoming request
-    logger.debug(f"Request started: {method} {path} from {client_ip} | Query: {query_params}")
-    
-    try:
-        response = await call_next(request)
-        process_time = time.time() - start_time
-        logger.debug(f"Request completed: {method} {path} | Status: {response.status_code} | Time: {process_time:.2f}s")
-        return response
-    except Exception as e:
-        process_time = time.time() - start_time
-        try:
-            error_str = str(e)
-        except Exception:
-            error_str = f"Error of type {type(e).__name__}"
-        logger.error(f"Request failed: {method} {path} | Error: {error_str} | Time: {process_time:.2f}s")
-        raise
-
 # Define allowed origins based on environment
 allowed_origins = ["https://www.kortix.com", "https://kortix.com", "https://www.suna.so", "https://suna.so", "https://sentrydemo.vercel.app"]
 allow_origin_regex = None
@@ -172,6 +136,43 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Project-Id", "X-MCP-URL", "X-MCP-Type", "X-MCP-Headers", "X-Refresh-Token", "X-API-Key"],
 )
+
+# Add logging middleware AFTER CORS middleware so CORS runs first
+@app.middleware("http")
+async def log_requests_middleware(request: Request, call_next):
+    structlog.contextvars.clear_contextvars()
+
+    request_id = str(uuid.uuid4())
+    start_time = time.time()
+    client_ip = request.client.host if request.client else "unknown"
+    method = request.method
+    path = request.url.path
+    query_params = str(request.query_params)
+
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id,
+        client_ip=client_ip,
+        method=method,
+        path=path,
+        query_params=query_params
+    )
+
+    # Log the incoming request
+    logger.debug(f"Request started: {method} {path} from {client_ip} | Query: {query_params}")
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        logger.debug(f"Request completed: {method} {path} | Status: {response.status_code} | Time: {process_time:.2f}s")
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        try:
+            error_str = str(e)
+        except Exception:
+            error_str = f"Error of type {type(e).__name__}"
+        logger.error(f"Request failed: {method} {path} | Error: {error_str} | Time: {process_time:.2f}s")
+        raise
 
 # Create a main API router
 api_router = APIRouter()
