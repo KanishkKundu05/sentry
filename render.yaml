@@ -1,0 +1,44 @@
+# Render.com configuration for background workers
+# Deploy at: https://dashboard.render.com/
+
+services:
+  # Background Worker for Dramatiq
+  - type: worker
+    name: suna-worker
+    env: docker
+    dockerfilePath: ./backend/Dockerfile.worker
+    dockerContext: ./backend
+    plan: starter # or standard/pro based on your needs
+    autoDeploy: true
+    envVars:
+      - key: ENV_MODE
+        value: production
+      - key: WORKERS
+        value: 4
+      - key: THREADS
+        value: 4
+      - key: PYTHONPATH
+        value: /app
+      # Add all required environment variables from .env.production.example
+      - key: SUPABASE_URL
+        sync: false # Set manually in Render Dashboard
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        value: 6379
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: REDIS_SSL
+        value: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+    healthCheckPath: /
+

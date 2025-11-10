@@ -7,29 +7,51 @@ import asyncio
 
 load_dotenv()
 
-# logger.debug("Initializing Daytona sandbox configuration")
-daytona_config = DaytonaConfig(
-    api_key=config.DAYTONA_API_KEY,
-    api_url=config.DAYTONA_SERVER_URL, 
-    target=config.DAYTONA_TARGET,
-)
+# Global variable for Daytona client (initialized lazily)
+_daytona = None
+_daytona_config = None
 
-if daytona_config.api_key:
-    logger.debug("Daytona sandbox configured successfully")
-else:
-    logger.warning("No Daytona API key found in environment variables")
+def _get_daytona_config():
+    """Get or create Daytona configuration."""
+    global _daytona_config
+    if _daytona_config is None:
+        _daytona_config = DaytonaConfig(
+            api_key=config.DAYTONA_API_KEY,
+            api_url=config.DAYTONA_SERVER_URL, 
+            target=config.DAYTONA_TARGET,
+        )
+        
+        if _daytona_config.api_key:
+            logger.debug("Daytona sandbox configured successfully")
+        else:
+            logger.warning("No Daytona API key found in environment variables")
 
-if daytona_config.api_url:
-    logger.debug(f"Daytona API URL set to: {daytona_config.api_url}")
-else:
-    logger.warning("No Daytona API URL found in environment variables")
+        if _daytona_config.api_url:
+            logger.debug(f"Daytona API URL set to: {_daytona_config.api_url}")
+        else:
+            logger.warning("No Daytona API URL found in environment variables")
 
-if daytona_config.target:
-    logger.debug(f"Daytona target set to: {daytona_config.target}")
-else:
-    logger.warning("No Daytona target found in environment variables")
+        if _daytona_config.target:
+            logger.debug(f"Daytona target set to: {_daytona_config.target}")
+        else:
+            logger.warning("No Daytona target found in environment variables")
+    
+    return _daytona_config
 
-daytona = AsyncDaytona(daytona_config)
+def _get_daytona():
+    """Get or create Daytona client (lazy initialization)."""
+    global _daytona
+    if _daytona is None:
+        config_obj = _get_daytona_config()
+        
+        # Check if all required config is present
+        if not config_obj.api_key or not config_obj.api_url or not config_obj.target:
+            raise ValueError("Daytona configuration incomplete. Please set DAYTONA_API_KEY, DAYTONA_SERVER_URL, and DAYTONA_TARGET environment variables.")
+        
+        _daytona = AsyncDaytona(config_obj)
+        logger.debug("Daytona client initialized successfully")
+    
+    return _daytona
 
 async def get_or_start_sandbox(sandbox_id: str) -> AsyncSandbox:
     """Retrieve a sandbox by ID, check its state, and start it if needed."""
@@ -37,6 +59,7 @@ async def get_or_start_sandbox(sandbox_id: str) -> AsyncSandbox:
     logger.info(f"Getting or starting sandbox with ID: {sandbox_id}")
 
     try:
+        daytona = _get_daytona()
         sandbox = await daytona.get(sandbox_id)
         
         # Check if sandbox needs to be started
@@ -117,6 +140,7 @@ async def create_sandbox(password: str, project_id: str = None) -> AsyncSandbox:
     )
     
     # Create the sandbox
+    daytona = _get_daytona()
     sandbox = await daytona.create(params)
     logger.info(f"Sandbox created with ID: {sandbox.id}")
     
@@ -131,6 +155,7 @@ async def delete_sandbox(sandbox_id: str) -> bool:
     logger.info(f"Deleting sandbox with ID: {sandbox_id}")
 
     try:
+        daytona = _get_daytona()
         # Get the sandbox
         sandbox = await daytona.get(sandbox_id)
         

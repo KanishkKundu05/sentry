@@ -13,16 +13,16 @@ RUN apk add --no-cache curl git \
 # Install Python dependencies
 COPY pyproject.toml uv.lock ./
 ENV UV_LINK_MODE=copy
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --quiet
+RUN uv sync --locked --quiet
 
 # Copy application code
 COPY . .
 
-# Calculate optimal worker count based on 16 vCPUs
-# Using (2*CPU)+1 formula for CPU-bound applications
-ENV WORKERS=7
+# For Cloud Run, use fewer workers since Cloud Run handles horizontal scaling
+# Using 1 worker per 2 vCPU is safer for startup and memory
+ENV WORKERS=2
 ENV THREADS=2
-ENV WORKER_CONNECTIONS=2000
+ENV WORKER_CONNECTIONS=1000
 
 ENV PYTHONPATH=/app
 EXPOSE 8000
@@ -40,7 +40,6 @@ CMD ["sh", "-c", "uv run gunicorn api:app \
   --forwarded-allow-ips '*' \
   --worker-connections $WORKER_CONNECTIONS \
   --worker-tmp-dir /dev/shm \
-  --preload \
   --log-level info \
   --access-logfile - \
   --error-logfile - \

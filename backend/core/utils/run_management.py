@@ -4,7 +4,6 @@ from typing import Optional, List
 from fastapi import HTTPException
 from core.services import redis
 from ..utils.logger import logger
-from run_agent_background import update_agent_run_status, _cleanup_redis_response_list
 
 
 async def cleanup_instance_runs(instance_id: str):
@@ -50,6 +49,7 @@ async def stop_agent_run_with_helpers(agent_run_id: str, error_message: Optional
     
     # Import here to avoid circular dependency
     from ..core_utils import db
+    from run_agent_background import update_agent_run_status, _cleanup_redis_response_list
     
     client = await db.client
     final_status = "failed" if error_message else "stopped"

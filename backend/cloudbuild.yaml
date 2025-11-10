@@ -1,0 +1,107 @@
+# Google Cloud Build configuration for Suna Backend
+# This file defines how to build and deploy the backend services to Cloud Run
+
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/suna-backend:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/suna-backend:latest'
+      - '.'
+    dir: 'backend'
+
+  # Push the image to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/suna-backend:$COMMIT_SHA'
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/suna-backend:latest'
+
+  # Deploy API to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'suna-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/suna-backend:$COMMIT_SHA'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8000'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '300'
+      - '--max-instances'
+      - '10'
+      - '--min-instances'
+      - '1'
+      - '--vpc-connector'
+      - '${_VPC_CONNECTOR}'
+      - '--set-env-vars'
+      - 'ENV_MODE=production,REDIS_HOST=${_REDIS_HOST},REDIS_PORT=${_REDIS_PORT}'
+      - '--set-secrets'
+      - 'SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_KEY=SUPABASE_KEY:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest'
+
+  # Deploy Worker to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'suna-worker'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/suna-backend:$COMMIT_SHA'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--no-allow-unauthenticated'
+      - '--memory'
+      - '4Gi'
+      - '--cpu'
+      - '4'
+      - '--timeout'
+      - '3600'
+      - '--max-instances'
+      - '5'
+      - '--min-instances'
+      - '1'
+      - '--vpc-connector'
+      - '${_VPC_CONNECTOR}'
+      - '--command'
+      - 'uv'
+      - '--args'
+      - 'run,dramatiq,--skip-logging,--processes,4,--threads,4,run_agent_background'
+      - '--set-env-vars'
+      - 'ENV_MODE=production,REDIS_HOST=${_REDIS_HOST},REDIS_PORT=${_REDIS_PORT}'
+      - '--set-secrets'
+      - 'SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_KEY=SUPABASE_KEY:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest'
+
+# Substitution variables (can be set in Cloud Build trigger or via --substitutions flag)
+substitutions:
+  _REGION: 'us-central1'
+  _VPC_CONNECTOR: 'suna-vpc-connector'
+  _REDIS_HOST: '10.0.0.3'  # Replace with your Memorystore Redis IP
+  _REDIS_PORT: '6379'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1800s'
+
