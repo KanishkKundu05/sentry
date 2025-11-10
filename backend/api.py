@@ -140,6 +140,13 @@ async def log_requests_middleware(request: Request, call_next):
 allowed_origins = ["https://www.kortix.com", "https://kortix.com", "https://www.suna.so", "https://suna.so", "https://sentrydemo.vercel.app"]
 allow_origin_regex = None
 
+# Add dynamic FRONTEND_URL from environment variable if set
+if config.FRONTEND_URL_ENV:
+    frontend_url = config.FRONTEND_URL_ENV.rstrip('/')
+    if frontend_url not in allowed_origins:
+        allowed_origins.append(frontend_url)
+        logger.info(f"Added FRONTEND_URL_ENV to CORS allowed origins: {frontend_url}")
+
 # Add staging-specific origins
 if config.ENV_MODE == EnvMode.LOCAL:
     allowed_origins.append("http://localhost:3000")
